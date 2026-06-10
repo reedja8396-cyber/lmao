@@ -11,6 +11,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 intents.guilds = True
+intents.moderation = True  # Added for better moderation
 
 class AdvancedBot(commands.Bot):
     def __init__(self):
@@ -36,20 +37,28 @@ class AdvancedBot(commands.Bot):
                 guild_id INTEGER,
                 opened_at DATETIME
             );
+            CREATE TABLE IF NOT EXISTS giveaways (
+                message_id INTEGER,
+                channel_id INTEGER,
+                guild_id INTEGER,
+                prize TEXT,
+                end_time DATETIME,
+                winners INTEGER
+            );
         """)
         await self.db.commit()
 
-        # Fixed cog loading paths
         extensions = [
+            "cogs.developer",
+            "cogs.moderation",
+            "cogs.giveaways",
+            "cogs.tickets",
+            "cogs.welcome",
             "cogs.automod",
             "cogs.customcmds",
-            "cogs.developer",
-            "cogs.giveaways",
             "cogs.levels",
             "cogs.music",
-            "cogs.reaction_roles",
-            "cogs.tickets",
-            "cogs.welcome"
+            "cogs.reaction_roles"
         ]
         
         for ext in extensions:
@@ -59,13 +68,13 @@ class AdvancedBot(commands.Bot):
             except Exception as e:
                 print(f"❌ Failed to load {ext}: {e}")
 
-        print("Bot startup complete.")
+        print("🚀 Blade Bot startup complete.")
 
 bot = AdvancedBot()
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} is online! | Blade is ready.")
+    print(f"{bot.user} is online! | Blade Moderation System Ready")
 
 if not TOKEN:
     raise ValueError("DISCORD_TOKEN environment variable is missing!")
