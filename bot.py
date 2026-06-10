@@ -23,7 +23,6 @@ class AdvancedBot(commands.Bot):
 
     async def setup_hook(self):
         self.db = await aiosqlite.connect("bot.db")
-
         await self.db.executescript("""
             CREATE TABLE IF NOT EXISTS warnings (
                 user_id INTEGER,
@@ -31,7 +30,6 @@ class AdvancedBot(commands.Bot):
                 reason TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             );
-
             CREATE TABLE IF NOT EXISTS tickets (
                 channel_id INTEGER,
                 user_id INTEGER,
@@ -39,27 +37,27 @@ class AdvancedBot(commands.Bot):
                 opened_at DATETIME
             );
         """)
-
         await self.db.commit()
 
+        # Fixed cog loading paths
         extensions = [
-            "automod",
-            "customcmds",
-            "developer",
-            "giveaways",
-            "levels",
-            "music",
-            "reaction_roles",
-            "tickets",
-            "welcome"
+            "cogs.automod",
+            "cogs.customcmds",
+            "cogs.developer",
+            "cogs.giveaways",
+            "cogs.levels",
+            "cogs.music",
+            "cogs.reaction_roles",
+            "cogs.tickets",
+            "cogs.welcome"
         ]
-
+        
         for ext in extensions:
             try:
                 await self.load_extension(ext)
-                print(f"Loaded {ext}")
+                print(f"✅ Loaded {ext}")
             except Exception as e:
-                print(f"Failed to load {ext}: {e}")
+                print(f"❌ Failed to load {ext}: {e}")
 
         print("Bot startup complete.")
 
@@ -67,7 +65,7 @@ bot = AdvancedBot()
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} is online!")
+    print(f"{bot.user} is online! | Blade is ready.")
 
 if not TOKEN:
     raise ValueError("DISCORD_TOKEN environment variable is missing!")
