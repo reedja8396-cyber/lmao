@@ -114,7 +114,7 @@ class Developer(commands.Cog):
     async def devpanel(self, ctx):
         embed = discord.Embed(
             title="🔧 DEVELOPER CONTROL PANEL",
-            description="Click any red button → Type password `2012!` in the popup",
+            description="Click any red button! -> Make sure you know the password!",
             color=discord.Color.gold()
         )
         await ctx.send(embed=embed, view=DevPanel(self.bot))
